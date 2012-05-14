@@ -1,7 +1,7 @@
 timer2
 ======
 
-Erlang application which is a high(er) performance version of timer, which is completely API compatible.
+Erlang application which is a high(er) performance and API compatible version of timer.
 (just timer2:... instead of timer:...)
 
 
