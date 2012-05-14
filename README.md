@@ -46,7 +46,7 @@ as per [the Common Caveats in the Erlang Efficiency Guide](http://www.erlang.org
 
 Structurally, there are two sets of `gen_servers`, `acceptors` and `processors`.  The `acceptors` are responsible
 for accepting timer2: requests (who would-a thunk it!), and all the associated housekeeping.  The `processors` 
-basically _do_ stuff - sending messages or applying MFAs at the appropriate time.
+basically _do_ stuff - sending messages or spawning MFAs at the appropriate time.
 
 As you might imagine, the `acceptor` is the one most likely to get overloaded.  A good rule of thumb for high_performance 
 is to increase the number of `acceptors` as your load/need increases. 
