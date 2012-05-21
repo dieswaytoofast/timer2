@@ -21,6 +21,8 @@
 
 -export([get_env/0, get_env/1, get_env/2]).
 
+-export([add_child/1]).
+
 -export([start/0, stop/0]).
 
 %%
@@ -265,6 +267,16 @@ get_env(Key, Default) ->
             Default
     end.
 
+%% @doc Add an addition acceptor or processor
+-spec add_child(child_type()) -> {ok, pid()} | error().
+add_child(Type) ->
+    case Type of
+        X1 when X1 =:= timer2_acceptor orelse 
+                X1 =:= timer2_processor ->
+            timer2_sup:add_child(Type);
+        _ ->
+            {error, badarg}
+    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions

@@ -1,4 +1,4 @@
-APPLICATION := runicka_server
+APPLICATION := timer2
 
 ERL := erl
 EPATH := -pa ebin -pz deps/*/ebin

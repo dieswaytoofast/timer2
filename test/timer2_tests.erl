@@ -115,8 +115,10 @@ t_processor_ping(_In) ->
     ?_assertEqual({ok, ping}, Res).
 
 t_start_child(_In) ->
-    {ok, APid} = start_child(timer2_acceptor, 31),
-    {ok, PPid} = start_child(timer2_processor, 31),
+    {ok, APid} = timer2_sup:add_child(timer2_acceptor),
+    {ok, PPid} = timer2_sup:add_child(timer2_processor),
+    Res = timer2_sup:add_child(dummy_type),
+    _ = ?_assertEqual({error, badarg}, Res),
     _ = ?_assertEqual(true, is_process_alive(APid)),
     ?_assertEqual(true, is_process_alive(PPid)).
 
@@ -271,16 +273,6 @@ t_apply_interval(_In) ->
     timer2:sleep(1000),
     _ = ?_assertMatch({ok, {[], [], _}}, timer2_acceptor:show_tables()),
     ?_assertEqual(true, length(RetList) >= Count).
-
-start_child(Type, Id) ->
-    Args = 
-    case Type of
-        timer2_acceptor ->
-            [Id];
-        _ ->
-            []
-    end,
-    supervisor:start_child( timer2_sup, {make_ref(), {Type, start_link, Args}, permanent, 5000, worker, [Type]}).
 
 do_loop(Acc, Time, ExitType) ->
     receive

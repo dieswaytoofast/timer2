@@ -23,9 +23,9 @@
 %%
 %% Types
 %%
--define(TIMER2_TAB, timer2_tab_).
--define(TIMER2_REF_TAB, timer2_ref_tab_).
--define(TIMER2_PID_TAB, timer2_pid_tab_).
+-define(TIMER2_TAB, timer2_tab).
+-define(TIMER2_REF_TAB, timer2_ref_tab).
+-define(TIMER2_PID_TAB, timer2_pid_tab).
 
 -define(DEFAULT_TIMER_TIMEOUT, 5000).
 -define(MAX_TIMEOUT, 16#0800000).
@@ -38,6 +38,7 @@
 -type timer_name()                            :: binary() | atom().
 -type timer_type()                            :: atom().
 -type time()                                  :: non_neg_integer().
--type timer2_ref()                          :: {reference(), reference()}.
--type timer2_server_ref()                          :: {pid(), reference()}.
+-type timer2_ref()                            :: {reference(), reference()}.
+-type timer2_server_ref()                     :: {pid(), reference()}.
+-type child_type()                            :: timer2_acceptor | timer2_supervisor.
 
