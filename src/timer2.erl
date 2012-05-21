@@ -287,10 +287,7 @@ process_request(cancel, {_, {Pid, _Timer2Ref}} = TRef) when is_pid(Pid) ->
     gen_server:call(Pid, {cancel, TRef});
 
 process_request(cancel, _) ->
-    {error, badarg};
-
-process_request(RequestType, Args) ->
-    timer2_manager:safe_call({timer2_acceptor, undefined}, {RequestType, undefined, Args}).
+    {error, badarg}.
 
 process_request(RequestType, Time, Args) when is_integer(Time) ->
     timer2_manager:safe_call({timer2_acceptor, undefined}, {RequestType, Time, Args});

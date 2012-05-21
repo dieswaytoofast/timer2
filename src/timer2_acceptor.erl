@@ -64,8 +64,7 @@ init(_Args) ->
 
     _ = timer2_manager:register_process(timer2_acceptor, AcceptorName),
 
-    State = #state{},
-    {ok, State}.
+    {ok, #state{}}.
 
 handle_call({apply_after, Time, Args}, _From, State) ->
     Timer2Ref = timer2_manager:create_reference(),
@@ -148,21 +147,17 @@ handle_cast(_Msg, State) ->
 
 % If one of the linked procs dies, cleanup all timers associated with it
 handle_info({'EXIT',  Pid, _Reason}, State) -> 
-    case ets:lookup(?TIMER2_PID_TAB, Pid) of
-        PidList when is_list(PidList) ->
-            lists:map(fun({_, Timer2Ref}) ->
-                        case ets:lookup(?TIMER2_REF_TAB, Timer2Ref) of
-                            [{_, TRef}] ->
-                                _ = erlang:cancel_timer(TRef),
-                                _ = ets:delete(?TIMER2_TAB, TRef);
-                            _ ->
-                                ok
-                        end,
-                        _ = ets:delete(?TIMER2_REF_TAB, Timer2Ref)
-                end, PidList);
-        _ ->
-            ok
-    end,
+    PidList = ets:lookup(?TIMER2_PID_TAB, Pid),
+    lists:map(fun({_, Timer2Ref}) ->
+                case ets:lookup(?TIMER2_REF_TAB, Timer2Ref) of
+                    [{_, TRef}] ->
+                        _ = erlang:cancel_timer(TRef),
+                        _ = ets:delete(?TIMER2_TAB, TRef);
+                    _ ->
+                        ok
+                end,
+                _ = ets:delete(?TIMER2_REF_TAB, Timer2Ref)
+        end, PidList),
     _ = ets:delete(?TIMER2_PID_TAB, Pid),
     {noreply, State};
 
@@ -182,14 +177,10 @@ code_change(_OldVsn, State, _Extra) ->
 local_do_after(Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         Pid when is_pid(Pid) ->
-            case erlang:send_after(Time, Pid, Message) of
-                badarg ->
-                    {error, badarg};
-                NewETRef ->
-                    _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
-                    _ = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
-                    {ok, {NewETRef, Timer2Ref}}
-            end;
+            NewETRef =  erlang:send_after(Time, Pid, Message),
+            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
+            _ = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
+            {ok, {NewETRef, Timer2Ref}};
         Error ->
             Error
     end.
@@ -197,17 +188,13 @@ local_do_after(Timer2Ref, Time, Message, _State) ->
 local_do_interval(FromPid, Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         ToPid when is_pid(ToPid) ->
-            case erlang:send_after(Time, ToPid, Message) of
-                badarg ->
-                    {error, badarg};
-                ETRef ->
-		            % Need to link to the FromPid so we can remove these entries
-		            catch link(FromPid),
-		            _ = ets:insert(?TIMER2_TAB, {ETRef, Message}),
-		            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
-		            _ = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
-		            {ok, {ETRef, Timer2Ref}}
-            end;
+            ETRef = erlang:send_after(Time, ToPid, Message),
+            % Need to link to the FromPid so we can remove these entries
+            catch link(FromPid),
+            _ = ets:insert(?TIMER2_TAB, {ETRef, Message}),
+            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
+            _ = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
+            {ok, {ETRef, Timer2Ref}};
         Error ->
             Error
     end.

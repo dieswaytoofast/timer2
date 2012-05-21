@@ -22,7 +22,6 @@
 %% API functions
 %% ===================================================================
 
--spec start_link() -> {ok, pid()} | ignore | error().
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -34,7 +33,6 @@ add_child(Type) ->
 %% Supervisor callbacks
 %% ===================================================================
 
--spec init(_Args::any()) -> {ok, any()} | {ok, any(), Timeout :: integer()} | ignore | {stop, Reason :: any()}.
 init([]) ->
     NumAcceptors = timer2:get_env(timer2_acceptors, 1),
     NumProcessors = timer2:get_env(timer2_processors, 1),

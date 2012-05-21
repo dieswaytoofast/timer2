@@ -41,12 +41,12 @@
 %% ------------------------------------------------------------------
 
 %% @doc Register a process locally
--spec register_process(Type::atom(),Name::binary()) -> true.
+-spec register_process(Type::atom(),Name:: binary() | reference()) -> true.
 register_process(Type, Name) ->
     gproc:reg({p, l, Type}, Name).
 
 %% @doc Get the Pid for a given process type, or {Type, Name}
--spec get_process({Type::atom(), Name::reference()} | atom()) -> pid().
+-spec get_process({Type::atom(), Name::reference()} | atom()) -> pid() | error().
 get_process(Key) ->
     get_child_pid(Key).
 
