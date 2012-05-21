@@ -28,8 +28,10 @@ Usage
 -----
 
 `timer2:start()` will start up the timer. (Take a look at `src/timer2.erl` to see the list of applications that need to be started though!)
- 
- Take a look at app.config - you can adjust the number of acceptors and processors based on need (see below)
+
+Take a look at app.config - you can adjust the number of acceptors and processors based on need (see below)
+
+`timer2:add_child(timer2_acceptor | timer2_processor) can be used to dynamically increase capacity
 
 
 
@@ -51,19 +53,3 @@ basically _do_ stuff - sending messages or spawning MFAs at the appropriate time
 As you might imagine, the `acceptor` is the one most likely to get overloaded.  A good rule of thumb for high_performance 
 is to increase the number of `acceptors` as your load/need increases. 
 You should never need more than one or two `processors` though.
-
-Warning
--------
-
-_Multiple ETS Tables_:
-
-Each acceptor creates three ETS tables 
-* `timer2_tab_<id>`
-* `timer2_ref_tab_<id>`
-* `timer2_pid_tab_<id>`
-Where ID is ID of the acceptor (1 .. <num_acceptors>).
-
-
-_No Auto-Balancing_:
-
-If you create additional timers after startup, they will not auto-balance
