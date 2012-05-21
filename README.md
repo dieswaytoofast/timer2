@@ -31,7 +31,7 @@ Usage
 
 Take a look at app.config - you can adjust the number of acceptors and processors based on need (see below)
 
-`timer2:add_child(timer2_acceptor | timer2_processor) can be used to dynamically increase capacity
+`timer2:add_child(timer2_acceptor | timer2_processor)` can be used to dynamically increase capacity
 
 
 
