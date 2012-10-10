@@ -29,7 +29,7 @@ distclean:
 dialyze: compile
 	@dialyzer -r .
 
-test:
+test: compile
 	@rebar skip_deps=true eunit
 
 console:
