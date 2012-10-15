@@ -1,8 +1,12 @@
 %%%-------------------------------------------------------------------
 %%% @author Mahesh Paolini-Subramanya <mahesh@dieswaytoofast.com>
-%%% @copyright (C) 2012 Mahesh Paolini-Subramanya
-%%% @doc Main module for the timer2 application.
+%%% @copyright (C) 2011-2012 Juan Jose Comellas, Mahesh Paolini-Subramanya
+%%% @doc High performance timer module
 %%% @end
+%%%
+%%% This source file is subject to the New BSD License. You should have received
+%%% a copy of the New BSD license with this software. If not, it can be
+%%% retrieved from: http://www.opensource.org/licenses/bsd-license.php
 %%%-------------------------------------------------------------------
 -module(timer2).
 
@@ -282,12 +286,9 @@ add_child(Type) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-process_request(cancel, {_, {Pid, _Timer2Ref}} = TRef) when is_pid(Pid) ->
+process_request(cancel, TRef) ->
     %% Could have this go through gproc, but why do so if not necessary?
-    gen_server:call(Pid, {cancel, TRef});
-
-process_request(cancel, _) ->
-    {error, badarg}.
+    timer2_manager:safe_call({timer2_acceptor, undefined}, {cancel, TRef}).
 
 process_request(RequestType, Time, Args) when is_integer(Time) ->
     timer2_manager:safe_call({timer2_acceptor, undefined}, {RequestType, Time, Args});

@@ -199,9 +199,6 @@ local_do_interval(FromPid, Timer2Ref, Time, Message, _State) ->
             Error
     end.
 
-process_request(delete, {Pid, _TRef} = Timer2Ref) when is_pid(Pid) ->
+process_request(delete, Timer2Ref) ->
     %% Could have this go through gproc, but why do so if not necessary?
-    gen_server:cast(Pid, {delete, Timer2Ref});
-
-process_request(delete, _) ->
-    {error, badarg}.
+    timer2_manager:safe_cast({timer2_acceptor, undefined}, {delete, Timer2Ref}).
