@@ -8,6 +8,9 @@ TEST_EPATH := -pa .eunit -pz deps/*/ebin
 
 all: compile
 
+bootstrap:
+	@rebar get-deps
+
 compile:
 	@rebar compile
 
