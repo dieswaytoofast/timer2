@@ -21,6 +21,8 @@ doc:
 	@rebar skip_deps=true doc
 
 clean:
+	- rm -rf $(CURDIR)/logs/*
+	- rm -rf $(CURDIR)/test/*.beam
 	@rebar skip_deps=true clean
 
 depclean:
@@ -33,7 +35,7 @@ dialyze: compile
 	@dialyzer -r .
 
 test: compile
-	@rebar skip_deps=true eunit
+	@rebar skip_deps=true ct verbose=1
 
 console:
 	$(ERL) -sname $(APPLICATION) $(EPATH) -config app
