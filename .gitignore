@@ -2,3 +2,6 @@
 deps
 ebin/*.beam
 ebin/*.app
+logs/*
+test/*.beam
+.project
