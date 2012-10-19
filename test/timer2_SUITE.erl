@@ -32,9 +32,11 @@ suite() ->
     [{timetrap,{minutes,2}}].
 
 init_per_suite(Config) ->
+	start(),
     Config.
 
 end_per_suite(_Config) ->
+	stop(),
     ok.
 
 init_per_group(_, Config) ->
@@ -44,11 +46,9 @@ end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    start(),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
-    stop(),
     ok.
 
 %%
@@ -237,10 +237,9 @@ t_apply_after_many(_In) ->
     {ok, {[], [], []}} = timer2_acceptor:show_tables(),
     RetList = MessageList.
 
-%%t_eunit_interval(_In) ->
-    %%ok = eunit:test(timer2_tests).
-
+% Must be at the end, otherwise confuses the other tests.
 t_send_interval(_In) ->
+    process_flag(trap_exit, true),
     Time = 500,
     Count = 4,
     Message = make_ref(),
@@ -250,15 +249,16 @@ t_send_interval(_In) ->
     _ = spawn_link(fun() ->
                     timer2:sleep((Time * Count) + 250),
                     CRes = timer2:cancel(TRef),
-		    {ok, cancel}, CRes
+		            {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
                            do_loop([], (Time * Count) + 2000, normal)), 
     timer2:sleep(1000),
     {ok, {[], [], _}} = timer2_acceptor:show_tables(),
-    true =:= (length(RetList) >= Count).
-    
+    true = (length(RetList) >= Count).
+
 t_apply_interval(_In) ->
+    process_flag(trap_exit, true),
     Time = 500,
     Count = 4,
     Message = make_ref(),
@@ -268,14 +268,14 @@ t_apply_interval(_In) ->
     _ = spawn_link(fun() ->
                     timer2:sleep((Time * Count) + 250),
                     CRes = timer2:cancel(TRef),
-                    {ok, cancel} = CRes
+		            {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
                            do_loop([], (Time * Count) + 1000, normal)), 
     timer2:sleep(1000),
     {ok, {[], [], _}} = timer2_acceptor:show_tables(),
-    true =:= (length(RetList) >= Count).
-    
+    true = (length(RetList) >= Count).
+
 do_loop(Acc, Time, ExitType) ->
     receive
         last_message ->
