@@ -301,7 +301,7 @@ wait_for_message(Pid, Message, Timeout) ->
         Message ->
             Message;
         OtherMessage ->
-            io:format("Recived strange message OtherMessage:~p~n", [OtherMessage]),
+            ct:log(info, "Recived strange message OtherMessage:~p~n", [OtherMessage]),
 	    wait_for_message(Pid, Message, Timeout)
     after Timeout ->
             erlang:error(timeout)
@@ -312,7 +312,7 @@ wait_for_exit(Pid, Timeout) ->
         {'EXIT', _Pid, Reason} ->
             Reason;
         OtherMessage ->
-            io:format("Recived strange message OtherMessage:~p~n", [OtherMessage]),
+            ct:log(info, "Recived strange message OtherMessage:~p~n", [OtherMessage]),
 	    wait_for_exit(Pid, Timeout)
     after Timeout ->
             erlang:error(timeout)
