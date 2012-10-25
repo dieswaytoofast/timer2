@@ -32,11 +32,11 @@ suite() ->
     [{timetrap,{minutes,2}}].
 
 init_per_suite(Config) ->
-	start(),
+    start(),
     Config.
 
 end_per_suite(_Config) ->
-	stop(),
+    stop(),
     ok.
 
 init_per_group(_, Config) ->
@@ -239,7 +239,6 @@ t_apply_after_many(_In) ->
 
 % Must be at the end, otherwise confuses the other tests.
 t_send_interval(_In) ->
-    process_flag(trap_exit, true),
     Time = 500,
     Count = 4,
     Message = make_ref(),
@@ -258,7 +257,6 @@ t_send_interval(_In) ->
     true = (length(RetList) >= Count).
 
 t_apply_interval(_In) ->
-    process_flag(trap_exit, true),
     Time = 500,
     Count = 4,
     Message = make_ref(),
