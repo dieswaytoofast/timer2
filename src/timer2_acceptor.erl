@@ -190,7 +190,12 @@ local_do_interval(FromPid, Timer2Ref, Time, Message, _State) ->
         ToPid when is_pid(ToPid) ->
             ETRef = erlang:send_after(Time, ToPid, Message),
             % Need to link to the FromPid so we can remove these entries
-            catch link(FromPid),
+            try 
+                link(FromPid)
+            catch
+                exit:Reason -> {'EXIT', Reason};
+                error:Reason -> {'EXIT', Reason}
+            end,
             _ = ets:insert(?TIMER2_TAB, {ETRef, Message}),
             _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
             _ = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
