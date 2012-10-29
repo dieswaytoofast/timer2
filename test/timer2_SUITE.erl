@@ -76,8 +76,13 @@ groups() ->
      {apply_after_test, [], [t_apply_after]},
      {cancel_send_after_test, [], [t_cancel_send_after]},
      {cancel_apply_after_test, [], [t_cancel_apply_after]},
+     {after_test, [parallel, {repeat, 5}], [t_exit_after, t_kill_after, t_apply_after, t_cancel_send_after, t_cancel_apply_after]},
      {send_after_many_test, [], [t_send_after_many]},
-     {apply_after_many_test, [], [t_apply_after_many]}
+     {apply_after_many_test, [], [t_apply_after_many]},
+     {send_interval, [], [t_send_interval]},
+     {apply_interval, [], [t_apply_interval]},
+     %{interval, [parallel, {repeat_until_any_fail, forever}], [t_send_interval, t_apply_interval]},
+     {interval_test, [parallel, {repeat, 10}], [t_send_interval, t_apply_interval]}
     ].
 
 all() ->
@@ -90,10 +95,12 @@ all() ->
      {group, apply_after_test},
      {group, cancel_send_after_test},
      {group, cancel_apply_after_test},
+     {group, after_test},
      {group, send_after_many_test},
      {group, apply_after_many_test},
-     t_send_interval,
-     t_apply_interval].
+     {group, send_interval},
+     {group, apply_interval},
+     {group, interval_test}].
 
 
 %%
