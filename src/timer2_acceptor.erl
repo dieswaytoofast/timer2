@@ -20,7 +20,7 @@
 -export([delete/1]).
 
 %% For debugging
--export([show_tables/0]).
+-export([show_tables/0, match_send_interval/0, match_apply_interval/0, match_send_after/0, match_apply_after/0]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -51,8 +51,19 @@ delete(Timer2Ref) ->
     process_request(delete, Timer2Ref).
 
 show_tables() ->
-        timer2_manager:safe_call({timer2_acceptor, undefined}, show_tables).
+    timer2_manager:safe_call({timer2_acceptor, undefined}, show_tables).
 
+match_send_interval() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_send_interval).
+
+match_apply_interval() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_apply_interval).
+
+match_send_after() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_send_after).
+
+match_apply_after() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_apply_after).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -113,6 +124,22 @@ handle_call(show_tables, _From, State) ->
     Timer2RefTab = ets:tab2list(?TIMER2_REF_TAB),
     Timer2PidTab = ets:tab2list(?TIMER2_PID_TAB),
     {reply, {ok,{Timer2Tab,Timer2RefTab, Timer2PidTab}}, State};
+
+handle_call(match_send_interval, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{send_interval,'_','_','$1'}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_apply_interval, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{apply_interval,'_','_','$1'}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_send_after, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{send_after,'_',{'$1','_'}}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_apply_after, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{apply_after,'_',{'$1','_'}}}),
+    {reply, {ok,{Timer2Match}}, State};
 
 handle_call(ping, _From, State) ->
     {reply, {ok, ping}, State};
