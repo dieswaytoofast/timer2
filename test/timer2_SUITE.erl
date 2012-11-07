@@ -240,7 +240,7 @@ t_send_after_many(_In) ->
                     {Time, Message} end, lists:seq(1,4)) ++ [{2000, last_message}],
     MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
     lists:map(fun({Time, Message}) -> Res = timer2:send_after(Time, self(), Message),
-		{ok, {_ETRef, _Timer2Ref}} = Res
+        {ok, {_ETRef, _Timer2Ref}} = Res
         end, List),
     RetList = lists:sort(do_loop([], 5000, error)),
     % Cleanup
@@ -254,7 +254,7 @@ t_apply_after_many(_In) ->
                     {Time, Message} end, lists:seq(1,4)) ++ [{2000, last_message}],
     MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
     lists:map(fun({Time, Message}) -> Res = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
-		{ok, {_ETRef, _Timer2Ref}} = Res
+        {ok, {_ETRef, _Timer2Ref}} = Res
         end, List),
     RetList = lists:sort(do_loop([], 5000, error)),
     % Cleanup
@@ -272,7 +272,7 @@ t_send_interval(_In) ->
     _ = spawn_link(fun() ->
                     timer2:sleep((Time * Count) + 250),
                     CRes = timer2:cancel(TRef),
-		            {ok, cancel} = CRes
+                    {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
                            do_loop([], (Time * Count) + 2000, normal)),
@@ -289,7 +289,7 @@ t_apply_interval(_In) ->
     _ = spawn_link(fun() ->
                     timer2:sleep((Time * Count) + 250),
                     CRes = timer2:cancel(TRef),
-		            {ok, cancel} = CRes
+                    {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
                            do_loop([], (Time * Count) + 1000, normal)),
@@ -549,7 +549,7 @@ wait_for_message(Pid, Message, Timeout) ->
             Message;
         OtherMessage ->
             ct:log(info, "Recived strange message OtherMessage:~p~n", [OtherMessage]),
-	    wait_for_message(Pid, Message, Timeout)
+        wait_for_message(Pid, Message, Timeout)
     after Timeout ->
             erlang:error(timeout)
     end.
@@ -560,7 +560,7 @@ wait_for_exit(Pid, Timeout) ->
             Reason;
         OtherMessage -> 
             ct:log(info, "Recived strange message OtherMessage:~p~n", [OtherMessage]),
-	    wait_for_exit(Pid, Timeout)
+        wait_for_exit(Pid, Timeout)
     after Timeout ->
             erlang:error(timeout)
     end.
