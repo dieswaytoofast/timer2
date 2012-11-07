@@ -11,7 +11,6 @@
 -include("../src/defaults.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("common_test/include/ct.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 %% ------------------------------------------------------------------
 %% Defines
@@ -20,8 +19,8 @@
 -define(PROPTEST(A), true = proper:quickcheck(A(),[{numtests,100}])).
 -define(PROPTEST(M,F), true = proper:quickcheck(M:F(),[{numtests,100}])).
 
--define(PROP_TIME_MIN, 100).
--define(PROP_TIME_MAX, 500).
+-define(PROP_TIME_MIN, 0).
+-define(PROP_TIME_MAX, 5000).
 
 %% ------------------------------------------------------------------
 %% Test Function Definitions
@@ -32,7 +31,7 @@
 %%
 
 suite() ->
-    [{timetrap,{minutes,15}}].
+    [{timetrap,{minutes,40}}].
 
 init_per_suite(Config) ->
     start(),
@@ -156,60 +155,21 @@ t_start_child(_In) ->
     true = is_process_alive(APid),
     true = is_process_alive(PPid).
 
-t_prop_send_after(_In) ->
-    ?PROPTEST(prop_send_after).
-
-prop_send_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Message = make_ref(),
-                Res = timer2:send_after(Time, self(), Message),
-                {ok, {_ETRef, _Timer2Ref}} = Res,
-                RetMessage = wait_for_message(self(), Message, Time+1000),
-                timer2:sleep(500),
-                RetMessage =:= Message
-            end).
-
+%% ------------------------------------------------------------------
+%% Unit Tests
+%% ------------------------------------------------------------------
 t_send_after(_In) ->
     Time = 500,
     Message = make_ref(),
     Res = timer2:send_after(Time, self(), Message),
     {ok, {_ETRef, _Timer2Ref}} = Res,
-    RetMessage = wait_for_message(self(), Message, 2500),
-    timer2:sleep(1000),
+    RetMessage = wait_for_message(self(), Message, Time+500),
     RetMessage = Message.
 
 t_table_check(_In) ->
     t_send_after(dummy_message),
     % Cleanup
-    timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables().
-
-t_prop_pid(_In) ->
-    ?PROPTEST(prop_pid).
-
-prop_pid() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Message = make_ref(),
-                process_flag(trap_exit, true),
-                Pid = spawn_link(fun() ->
-                                _ = timer2:send_interval(Time, self(), Message),
-                                timer2:sleep(2000)
-                        end),
-                timer2:sleep(500),
-                exit(Pid, some_reason),
-                wait_for_exit(Pid, 5000),
-                timer2:sleep(500),
-                {ok, {Match}} = timer2_acceptor:match_send_interval(),
-                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    Matched ->
-                        false;
-                    true ->
-                        true
-                end
-            end).
 
 t_pid(_In) ->
     Time = 9000,
@@ -219,49 +179,17 @@ t_pid(_In) ->
                     _ = timer2:send_interval(Time, self(), Message),
                     timer2:sleep(20000)
             end),
-    timer2:sleep(1000),
     exit(Pid, some_reason),
     wait_for_exit(Pid, 5000),
-    timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables().
-
-t_prop_apply_after(_In) ->
-    ?PROPTEST(prop_apply_after).
-
-prop_apply_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Message = make_ref(),
-                Res = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
-                {ok, {_ETRef, _Timer2Ref}} = Res,
-                Message = wait_for_message(self(), Message, Time+2000),
-                timer2:sleep(1000),
-                Message =:= Message
-            end).
 
 t_apply_after(_In) ->
     Time = 500,
     Message = make_ref(),
     Res = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
     {ok, {_ETRef, _Timer2Ref}} = Res,
-    Message = wait_for_message(self(), Message, 2500),
-    timer2:sleep(1000),
+    Message = wait_for_message(self(), Message, Time+2000),
     Message = Message.
-
-t_prop_exit_after(_In) ->
-    ?PROPTEST(prop_exit_after).
-
-prop_exit_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                process_flag(trap_exit, true),
-                Message = make_ref(),
-                Res = timer2:exit_after(Time, self(), Message),
-                {ok, {_ETRef, _Timer2Ref}} = Res,
-                Response = wait_for_exit(self(), Time+500),
-                timer2:sleep(1000),
-                Response =:= Message
-            end).
 
 t_exit_after(_In) ->
     Time = 500,
@@ -269,59 +197,17 @@ t_exit_after(_In) ->
     Message = make_ref(),
     Res = timer2:exit_after(Time, self(), Message),
     {ok, {_ETRef, _Timer2Ref}} = Res,
-    Response = wait_for_exit(self(), 2500),
-    timer2:sleep(1000),
+    Response = wait_for_exit(self(), Time+2000),
     Response = Message.
-
-t_prop_kill_after(_In) ->
-    ?PROPTEST(prop_kill_after).
-
-prop_kill_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                process_flag(trap_exit, true),
-                Pid = spawn_link(fun() -> timer2:sleep(10000) end),
-                Res = timer2:kill_after(Time, Pid),
-                {ok, {_ETRef, _Timer2Ref}} = Res,
-                Message = wait_for_exit(Pid, 2500),
-                timer2:sleep(1000),
-                killed =:= Message
-            end).
 
 t_kill_after(_In) ->
     Time = 500,
     process_flag(trap_exit, true),
-    Pid = spawn_link(fun() -> timer2:sleep(10000) end),
+    Pid = spawn_link(fun() -> timer2:sleep(Time*20) end),
     Res = timer2:kill_after(Time, Pid),
     {ok, {_ETRef, _Timer2Ref}} = Res,
-    Message = wait_for_exit(Pid, 2500),
-    timer2:sleep(1000),
+    Message = wait_for_exit(Pid, Time+2000),
     killed = Message.
-
-t_prop_cancel_send_after(_In) ->
-    ?PROPTEST(prop_cancel_send_after).
-
-prop_cancel_send_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Message = make_ref(),
-                SRes = timer2:send_after(Time, self(), Message),
-                {ok, {_ETRef, _Timer2Ref}} = SRes,
-                {ok, TRef} = SRes,
-                timer2:sleep(100),
-                CRes = timer2:cancel(TRef),
-                _ = ?_assertError(timeout, wait_for_message(self(), Message, 4000)),
-                {ok, cancel} = CRes,
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_send_after(),
-                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    Matched ->
-                        false;
-                    true ->
-                        true
-                end
-            end).
 
 t_cancel_send_after(_In) ->
     Time = 2000,
@@ -329,37 +215,11 @@ t_cancel_send_after(_In) ->
     SRes = timer2:send_after(Time, self(), Message),
     {ok, {_ETRef, _Timer2Ref}} = SRes,
     {ok, TRef} = SRes,
-    timer2:sleep(500),
     CRes = timer2:cancel(TRef),
-    _ = ?_assertError(timeout, wait_for_message(self(), Message, 4000)),
     {ok, cancel} = CRes,
+    % wait for parallel _after tests
     timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables().
-
-t_prop_cancel_apply_after(_In) ->
-    ?PROPTEST(prop_cancel_apply_after).
-
-prop_cancel_apply_after() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Message = make_ref(),
-                SRes = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
-                {ok, {_ETRef, _Timer2Ref}} = SRes,
-                {ok, TRef} = SRes,
-                timer2:sleep(100),
-                CRes = timer2:cancel(TRef),
-                _ = ?_assertError(timeout, wait_for_message(self(), Message, 4000)),
-                {ok, cancel} = CRes,
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_apply_after(),
-                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    Matched ->
-                        false;
-                    true ->
-                        true
-                end
-            end).
 
 t_cancel_apply_after(_In) ->
     Time = 500,
@@ -367,38 +227,11 @@ t_cancel_apply_after(_In) ->
     SRes = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
     {ok, {_ETRef, _Timer2Ref}} = SRes,
     {ok, TRef} = SRes,
-    timer2:sleep(100),
     CRes = timer2:cancel(TRef),
-    _ = ?_assertError(timeout, wait_for_message(self(), Message, 4000)),
     {ok, cancel} = CRes,
+    % wait for parallel _after tests
     timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables().
-
-t_prop_send_after_many(_In) ->
-    ?PROPTEST(prop_send_after_many).
-
-prop_send_after_many() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                List = lists:map(fun(Id) ->
-                                Message = {make_ref(), Id},
-                                {Time, Message} end, lists:seq(1,4)) ++ [{2000, last_message}],
-                MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
-                lists:map(fun({AbsTime, Message}) -> Res = timer2:send_after(AbsTime, self(), Message),
-                    {ok, {_ETRef, _Timer2Ref}} = Res
-                    end, List),
-                RetList = lists:sort(do_loop([], 5000, error)),
-                % Cleanup
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_send_after(),
-                PidMatched = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
-                if
-                    PidMatched ->
-                        false;
-                    true ->
-                        RetList =:= MessageList
-                end
-            end).
 
 t_send_after_many(_In) ->
     List = lists:map(fun(Id) ->
@@ -411,35 +244,8 @@ t_send_after_many(_In) ->
         end, List),
     RetList = lists:sort(do_loop([], 5000, error)),
     % Cleanup
-    timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables(),
     RetList = MessageList.
-
-t_prop_apply_after_many(_In) ->
-    ?PROPTEST(prop_apply_after_many).
-
-prop_apply_after_many() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                List = lists:map(fun(Id) ->
-                                Message = {make_ref(), Id},
-                                {Time, Message} end, lists:seq(1,4)) ++ [{2000, last_message}],
-                MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
-                lists:map(fun({AbsTime, Message}) -> Res = timer2:apply_after(AbsTime, timer2_manager, send_message_to_pid, [self(), Message]),
-                    {ok, {_ETRef, _Timer2Ref}} = Res
-                    end, List),
-                RetList = lists:sort(do_loop([], 5000, error)),
-                % Cleanup
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_apply_after(),
-                PidMatched = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
-                if
-                    PidMatched ->
-                        false;
-                    true ->
-                        RetList =:= MessageList
-                end
-            end).
 
 t_apply_after_many(_In) ->
     List = lists:map(fun(Id) ->
@@ -452,38 +258,8 @@ t_apply_after_many(_In) ->
         end, List),
     RetList = lists:sort(do_loop([], 5000, error)),
     % Cleanup
-    timer2:sleep(1000),
     {ok, {[], [], []}} = timer2_acceptor:show_tables(),
     RetList = MessageList.
-
-t_prop_send_interval(_In) ->
-    ?PROPTEST(prop_send_interval).
-
-prop_send_interval() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Count = 4,
-                Message = make_ref(),
-                IRes = {ok, TRef} = timer2:send_interval(Time, self(), Message),
-                {ok, {_ETRef, _Timer2Ref}} = IRes,
-                % Cancel the timer
-                _ = spawn_link(fun() ->
-                                timer2:sleep((Time * Count) + 250),
-                                CRes = timer2:cancel(TRef),
-                                {ok, cancel} = CRes
-                        end),
-                RetList = lists:filter(fun(X) -> X =:= Message end,
-                                       do_loop([], (Time * Count) + 2000, normal)), 
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_send_interval(),
-                PidMatched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    PidMatched ->
-                        false;
-                    true ->
-                        true =:= (length(RetList) >= Count)
-                end
-            end).
 
 % Must be at the end, otherwise confuses the other tests.
 t_send_interval(_In) ->
@@ -499,39 +275,9 @@ t_send_interval(_In) ->
 		            {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
-                           do_loop([], (Time * Count) + 2000, normal)), 
-    timer2:sleep(1000),
+                           do_loop([], (Time * Count) + 2000, normal)),
     {ok, {[], [], _}} = timer2_acceptor:show_tables(),
     true = (length(RetList) >= Count).
-
-t_prop_apply_interval(_In) ->
-    ?PROPTEST(prop_apply_interval).
-
-prop_apply_interval() ->
-    ?FORALL({Time}, {integer(?PROP_TIME_MIN, ?PROP_TIME_MAX)},
-            begin
-                Count = 4,
-                Message = make_ref(),
-                IRes = {ok, TRef} = timer2:apply_interval(Time, timer2_manager, send_message_to_pid, [self(), Message]),
-                {ok, {_ETRef, _Timer2Ref}} = IRes,
-                % Cancel the timer
-                _ = spawn_link(fun() ->
-                                timer2:sleep((Time * Count) + 250),
-                                CRes = timer2:cancel(TRef),
-                                {ok, cancel} = CRes
-                        end),
-                RetList = lists:filter(fun(X) -> X =:= Message end,
-                                       do_loop([], (Time * Count) + 1000, normal)), 
-                timer2:sleep(1000),
-                {ok, {Match}} = timer2_acceptor:match_apply_interval(),
-                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    Matched ->
-                        false;
-                    true ->
-                        true =:= (length(RetList) >= Count)
-                end
-            end).
 
 t_apply_interval(_In) ->
     Time = 500,
@@ -546,11 +292,237 @@ t_apply_interval(_In) ->
 		            {ok, cancel} = CRes
             end),
     RetList = lists:filter(fun(X) -> X =:= Message end,
-                           do_loop([], (Time * Count) + 1000, normal)), 
-    timer2:sleep(1000),
+                           do_loop([], (Time * Count) + 1000, normal)),
     {ok, {[], [], _}} = timer2_acceptor:show_tables(),
     true = (length(RetList) >= Count).
 
+%% ------------------------------------------------------------------
+%% Prop Unit Tests
+%% ------------------------------------------------------------------
+t_prop_send_after(_In) ->
+    ?PROPTEST(prop_send_after).
+prop_send_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Message = make_ref(),
+                Res = timer2:send_after(Time, self(), Message),
+                {ok, {_ETRef, _Timer2Ref}} = Res,
+                RetMessage = wait_for_message(self(), Message, Time+1000),
+                RetMessage =:= Message
+            end).
+
+t_prop_pid(_In) ->
+    ?PROPTEST(prop_pid).
+prop_pid() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Message = make_ref(),
+                process_flag(trap_exit, true),
+                Pid = spawn_link(fun() ->
+                                _ = timer2:send_interval(Time, self(), Message),
+                                timer2:sleep(Time)
+                        end),
+                exit(Pid, some_reason),
+                wait_for_exit(Pid, Time*5),
+                {ok, {Match}} = timer2_acceptor:match_send_interval(),
+                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
+                if
+                    Matched ->
+                        false;
+                    true ->
+                        true
+                end
+            end).
+
+t_prop_apply_after(_In) ->
+    ?PROPTEST(prop_apply_after).
+prop_apply_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Message = make_ref(),
+                Res = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
+                {ok, {_ETRef, _Timer2Ref}} = Res,
+                Message = wait_for_message(self(), Message, Time+1000),
+                Message =:= Message
+            end).
+
+t_prop_exit_after(_In) ->
+    ?PROPTEST(prop_exit_after).
+prop_exit_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                process_flag(trap_exit, true),
+                Message = make_ref(),
+                Res = timer2:exit_after(Time, self(), Message),
+                {ok, {_ETRef, _Timer2Ref}} = Res,
+                Response = wait_for_exit(self(), Time+500),
+                Response =:= Message
+            end).
+
+t_prop_kill_after(_In) ->
+    ?PROPTEST(prop_kill_after).
+prop_kill_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                process_flag(trap_exit, true),
+                Pid = spawn_link(fun() -> timer2:sleep(10000) end),
+                Res = timer2:kill_after(Time, Pid),
+                {ok, {_ETRef, _Timer2Ref}} = Res,
+                Message = wait_for_exit(Pid, Time+500),
+                killed =:= Message
+            end).
+
+t_prop_cancel_send_after(_In) ->
+    ?PROPTEST(prop_cancel_send_after).
+prop_cancel_send_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Message = make_ref(),
+                SRes = timer2:send_after(Time, self(), Message),
+                {ok, {_ETRef, _Timer2Ref}} = SRes,
+                {ok, TRef} = SRes,
+                CRes = timer2:cancel(TRef),
+                {ok, cancel} = CRes,
+                {ok, {Match}} = timer2_acceptor:match_send_after(),
+                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
+                if
+                    Matched ->
+                        false;
+                    true ->
+                        true
+                end
+            end).
+
+t_prop_cancel_apply_after(_In) ->
+    ?PROPTEST(prop_cancel_apply_after).
+prop_cancel_apply_after() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Message = make_ref(),
+                SRes = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
+                {ok, {_ETRef, _Timer2Ref}} = SRes,
+                {ok, TRef} = SRes,
+                CRes = timer2:cancel(TRef),
+                {ok, cancel} = CRes,
+                {ok, {Match}} = timer2_acceptor:match_apply_after(),
+                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
+                if
+                    Matched ->
+                        false;
+                    true ->
+                        true
+                end
+            end).
+
+%should we keep t_prop_send_after_many?
+t_prop_send_after_many(_In) ->
+    ?PROPTEST(prop_send_after_many).
+prop_send_after_many() ->
+    ?FORALL(Time, time_max(),
+            begin
+                List = lists:map(fun(Id) ->
+                                T = Id*100+Time,
+                                Message = {make_ref(), Id},
+                                {T, Message} end, lists:seq(1,4)) ++ [{Time+500, last_message}],
+                MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
+                lists:map(fun({AbsTime, Message}) -> Res = timer2:send_after(AbsTime, self(), Message),
+                    {ok, {_ETRef, _Timer2Ref}} = Res
+                    end, List),
+                RetList = lists:sort(do_loop([], Time*5+3000, error)),
+                % Cleanup
+                {ok, {Match}} = timer2_acceptor:match_send_after(),
+                PidMatched = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
+                if
+                    PidMatched ->
+                        false;
+                    true ->
+                        RetList =:= MessageList
+                end
+            end).
+
+%should we keep t_prop_apply_after_many?
+t_prop_apply_after_many(_In) ->
+    ?PROPTEST(prop_apply_after_many).
+prop_apply_after_many() ->
+    ?FORALL(Time, time_max(),
+            begin
+                List = lists:map(fun(Id) ->
+                                T = Id*100+Time,
+                                Message = {make_ref(), Id},
+                                {T, Message} end, lists:seq(1,4)) ++ [{Time+500, last_message}],
+                MessageList = lists:sort(lists:map(fun({_Time, Message}) -> Message end, List)),
+                lists:map(fun({AbsTime, Message}) -> Res = timer2:apply_after(AbsTime, timer2_manager, send_message_to_pid, [self(), Message]),
+                    {ok, {_ETRef, _Timer2Ref}} = Res
+                    end, List),
+                RetList = lists:sort(do_loop([], Time*5+3000, error)),
+                % Cleanup
+                {ok, {Match}} = timer2_acceptor:match_apply_after(),
+                PidMatched = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
+                if
+                    PidMatched ->
+                        false;
+                    true ->
+                        RetList =:= MessageList
+                end
+            end).
+
+t_prop_send_interval(_In) ->
+    ?PROPTEST(prop_send_interval).
+prop_send_interval() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Count = 4,
+                Message = make_ref(),
+                IRes = {ok, TRef} = timer2:send_interval(Time, self(), Message),
+                {ok, {_ETRef, _Timer2Ref}} = IRes,
+                % Cancel the timer
+                _ = spawn_link(fun() ->
+                                timer2:sleep((Time * Count) + 250),
+                                CRes = timer2:cancel(TRef),
+                                {ok, cancel} = CRes
+                        end),
+                RetList = lists:filter(fun(X) -> X =:= Message end,
+                                       do_loop([], (Time * Count) + 2000, normal)), 
+                {ok, {Match}} = timer2_acceptor:match_send_interval(),
+                PidMatched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
+                if
+                    PidMatched ->
+                        false;
+                    true ->
+                        true =:= (length(RetList) >= Count)
+                end
+            end).
+
+t_prop_apply_interval(_In) ->
+    ?PROPTEST(prop_apply_interval).
+prop_apply_interval() ->
+    ?FORALL(Time, time_max(),
+            begin
+                Count = 4,
+                Message = make_ref(),
+                IRes = {ok, TRef} = timer2:apply_interval(Time, timer2_manager, send_message_to_pid, [self(), Message]),
+                {ok, {_ETRef, _Timer2Ref}} = IRes,
+                % Cancel the timer
+                _ = spawn_link(fun() ->
+                                timer2:sleep((Time * Count) + 250),
+                                CRes = timer2:cancel(TRef),
+                                {ok, cancel} = CRes
+                        end),
+                RetList = lists:filter(fun(X) -> X =:= Message end,
+                                       do_loop([], (Time * Count) + 1000, normal)), 
+                {ok, {Match}} = timer2_acceptor:match_apply_interval(),
+                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
+                if
+                    Matched ->
+                        false;
+                    true ->
+                        true =:= (length(RetList) >= Count)
+                end
+            end).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
 do_loop(Acc, Time, ExitType) ->
     receive
         last_message ->
@@ -593,3 +565,5 @@ wait_for_exit(Pid, Timeout) ->
             erlang:error(timeout)
     end.
 
+time_max() ->
+    ?LET(T, integer(?PROP_TIME_MIN,?PROP_TIME_MAX), T).
