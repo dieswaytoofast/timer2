@@ -107,12 +107,13 @@ handle_call({cancel, {_ETRef, Timer2Ref} = _Args}, _From, State) ->
     % Need to look up the TRef, because it might have changed due to *_interval usage
     Reply = case ets:lookup(?TIMER2_REF_TAB, Timer2Ref) of
         [{_, FinalTRef}] ->
-            erlang:cancel_timer(FinalTRef),
+            % follow the defination of http://erldocs.com/R15B/erts/erlang.html?i=0&search=timer#cancel_timer/1
+            Time = erlang:cancel_timer(FinalTRef),
             _ = ets:delete(?TIMER2_TAB, FinalTRef),
             _ = ets:delete(?TIMER2_REF_TAB, Timer2Ref),
-            {ok, cancel};
+            Time;
         _ ->
-            {error, badarg}
+            false
     end,
     {reply, Reply, State};
 
