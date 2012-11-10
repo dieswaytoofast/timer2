@@ -9,15 +9,11 @@
 %% ------------------------------------------------------------------
 
 -include("../src/defaults.hrl").
--include_lib("proper/include/proper.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %% ------------------------------------------------------------------
 %% Defines
 %% ------------------------------------------------------------------
-
--define(PROPTEST(A), true = proper:quickcheck(A(),[{numtests,100}])).
--define(PROPTEST(M,F), true = proper:quickcheck(M:F(),[{numtests,100}])).
 
 -define(PROP_TIME_MIN, 0).
 -define(PROP_TIME_MAX, 5000).
@@ -32,7 +28,7 @@
 %%
 
 suite() ->
-    [{ct_hooks,[cth_surefire]}, {timetrap,{minutes,40}}].
+    [{ct_hooks,[cth_surefire]}, {timetrap,{minutes,1}}].
 
 init_per_suite(Config) ->
     start(),
@@ -64,34 +60,48 @@ stop() ->
     timer2:stop().
 
 groups() ->
-    [{start_stop_test, [],
+    [{start_test, [],
       [t_acceptor_start,
        t_processor_start,
        t_start_child,
        t_acceptor_ping,
        t_processor_ping
       ]},
-     {send_after_test, [], [t_send_after]},
-     {pid_test, [], [t_pid]},
-     {table_check_test, [], [t_table_check]},
-     {after_test, [parallel, {repeat, 1}], 
+     {after_unit_test, [parallel, {repeat, 1}], 
       [t_exit_after,
        t_kill_after,
        t_apply_after,
        t_cancel_send_after,
        t_cancel_apply_after
       ]},
-     {interval_test, [parallel, {repeat, 1}], 
+     {interval_unit_test, [parallel, {repeat, 1}], 
       [t_send_interval,
        t_apply_interval,
        t_apply_after_many,
        t_send_after_many
+      ]},
+     {unit_test , [parallel, {repeat, 5}],
+      [t_send_after,
+       t_pid,
+       t_table_check,
+       t_exit_after,
+       t_kill_after,
+       t_apply_after,
+       t_cancel_send_after,
+       t_cancel_apply_after,
+       t_send_after_many,
+       t_apply_after_many,
+       t_send_interval,
+       t_apply_interval
       ]}
     ].
 
 all() ->
-    [{group, interval_test},
-     {group, after_test}].
+    [{group, start_test},
+     %{group, interval_unit_test},
+     %{group, after_unit_test},
+     {group, unit_test}
+    ].
 
 %%
 %% Helper Functions
@@ -124,64 +134,33 @@ t_start_child(_In) ->
 %% Unit Tests
 %% ------------------------------------------------------------------
 t_send_after(_In) ->
-    Time = 500,
-    Message = make_ref(),
-    Res = timer2:send_after(Time, self(), Message),
-    {ok, {_ETRef, _Timer2Ref}} = Res,
-    RetMessage = wait_for_message(self(), Message, Time+500),
-    RetMessage = Message.
+    [begin
+         Message = make_ref(),
+         Res = timer2:send_after(Time, self(), Message),
+         {ok, {_ETRef, _Timer2Ref}} = Res,
+         RetMessage = wait_for_message(self(), Message, Time+500),
+         RetMessage = Message
+    end || Time <- ?TIME_BOUNDS].
 
 t_table_check(_In) ->
     t_send_after(dummy_message),
     % Cleanup
-    {ok, {[], [], []}} = timer2_acceptor:show_tables().
+    {ok, {Match}} = timer2_acceptor:match_send_after(),
+    false = lists:any(fun(M)->{self(),dummy_message}=:=M end, lists:flatten(Match)).
 
 t_pid(_In) ->
-    Time = 9000,
-    Message = make_ref(),
-    process_flag(trap_exit, true),
-    Pid = spawn_link(fun() ->
-                    _ = timer2:send_interval(Time, self(), Message),
-                    timer2:sleep(20000)
-            end),
-    exit(Pid, some_reason),
-    wait_for_exit(Pid, 5000),
-    {ok, {[], [], []}} = timer2_acceptor:show_tables().
-
-t_prop_send_after(_In) ->
-    ?PROPTEST(prop_send_after).
-prop_send_after() ->
-    ?FORALL(Time, time_max(),
-            begin
-                Message = make_ref(),
-                Res = timer2:send_after(Time, self(), Message),
-                {ok, {_ETRef, _Timer2Ref}} = Res,
-                RetMessage = wait_for_message(self(), Message, Time+1000),
-                RetMessage =:= Message
-            end).
-
-t_prop_pid(_In) ->
-    ?PROPTEST(prop_pid).
-prop_pid() ->
-    ?FORALL(Time, time_max(),
-            begin
-                Message = make_ref(),
-                process_flag(trap_exit, true),
-                Pid = spawn_link(fun() ->
-                                _ = timer2:send_interval(Time, self(), Message),
-                                timer2:sleep(Time)
-                        end),
-                exit(Pid, some_reason),
-                wait_for_exit(Pid, Time*5),
-                {ok, {Match}} = timer2_acceptor:match_send_interval(),
-                Matched = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
-                if
-                    Matched ->
-                        false;
-                    true ->
-                        true
-                end
-            end).
+    [begin
+         Message = make_ref(),
+         process_flag(trap_exit, true),
+         Pid = spawn_link(fun() ->
+                         _ = timer2:send_interval(Time, self(), Message),
+                         timer2:sleep(20000)
+                 end),
+         exit(Pid, some_reason),
+         wait_for_exit(Pid, 5000),
+         {ok, {Match}} = timer2_acceptor:match_send_interval(),
+         false = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match))
+    end || Time <- ?TIME_BOUNDS].
 
 t_apply_after(_In) ->
     [begin
@@ -218,8 +197,13 @@ t_cancel_send_after(_In) ->
          SRes = timer2:send_after(Time, self(), Message),
          {ok, {_ETRef, _Timer2Ref}} = SRes,
          {ok, TRef} = SRes,
-         CRes = timer2:cancel(TRef),
-         {ok, cancel} = CRes,
+         % if Time is short, ets table could be cleaned
+         case timer2:cancel(TRef) of
+             false ->
+                 ct:log("TimerRef was never a timer, that it has already delivered its message");
+             _Time ->
+                 ct:log("left until the timer would have expired:~pms",[_Time])
+         end,
          {ok, {Match}} = timer2_acceptor:match_send_after(),
          false = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match))
      end || Time <- ?TIME_BOUNDS].
@@ -230,8 +214,13 @@ t_cancel_apply_after(_In) ->
          SRes = timer2:apply_after(Time, timer2_manager, send_message_to_pid, [self(), Message]),
          {ok, {_ETRef, _Timer2Ref}} = SRes,
          {ok, TRef} = SRes,
-         CRes = timer2:cancel(TRef),
-         {ok, cancel} = CRes,
+         % if Time is short, ets table could be cleaned
+         case timer2:cancel(TRef) of
+             false ->
+                 ct:log("TimerRef was never a timer, that it has already delivered its message");
+             _Time ->
+                 ct:log("left until the timer would have expired:~pms",[_Time])
+         end,
          {ok, {Match}} = timer2_acceptor:match_apply_after(),
          false = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match))
      end || Time <- ?TIME_BOUNDS].
@@ -248,6 +237,8 @@ t_send_after_many(_In) ->
                    end, List),
          RetList = lists:sort(do_loop([], Time*5+3000, error)),
          %% Cleanup
+         % wait for clean table
+         timer2:sleep(500),
          {ok, {Match}} = timer2_acceptor:match_send_after(),
          false = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
          RetList = MessageList
@@ -265,6 +256,8 @@ t_apply_after_many(_In) ->
                    end, List),
          RetList = lists:sort(do_loop([], Time*5+3000, error)),
          %% Cleanup
+         % wait for clean table
+         timer2:sleep(500),
          {ok, {Match}} = timer2_acceptor:match_apply_after(),
          false = lists:any(fun(M)->self()=:=M end, lists:flatten(Match)),
          RetList = MessageList
@@ -278,12 +271,14 @@ t_send_interval(_In) ->
          {ok, {_ETRef, _Timer2Ref}} = IRes,
          %% Cancel the timer
          _ = spawn_link(fun() ->
-                                timer2:sleep((Time * Count) + 250),
-                                CRes = timer2:cancel(TRef),
-                                {ok, cancel} = CRes
+                                timer2:sleep((Time * Count) + interval_constant(Time)),
+                                % if Time is short, ets table could be cleaned
+                                _ = timer2:cancel(TRef)
                         end),
          RetList = lists:filter(fun(X) -> X =:= Message end,
-                                do_loop([], (Time * Count) + 2000, normal)), 
+                                do_loop([], (Time * Count) + 100, normal)), 
+         % wait for clean table
+         timer2:sleep(500),
          {ok, {Match}} = timer2_acceptor:match_send_interval(),
          false = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
          true = (length(RetList) >= Count)
@@ -295,14 +290,15 @@ t_apply_interval(_In) ->
          Message = make_ref(),
          IRes = {ok, TRef} = timer2:apply_interval(Time, timer2_manager, send_message_to_pid, [self(), Message]),
          {ok, {_ETRef, _Timer2Ref}} = IRes,
-                                                % Cancel the timer
+         % Cancel the timer
          _ = spawn_link(fun() ->
-                                timer2:sleep((Time * Count) + 250),
-                                CRes = timer2:cancel(TRef),
-                                {ok, cancel} = CRes
+                                timer2:sleep((Time * Count) + interval_constant(Time)),
+                                _ = timer2:cancel(TRef)
                         end),
          RetList = lists:filter(fun(X) -> X =:= Message end,
-                                do_loop([], (Time * Count) + 1000, normal)), 
+                                do_loop([], (Time * Count) + 100, normal)), 
+         % wait for clean table
+         timer2:sleep(500),
          {ok, {Match}} = timer2_acceptor:match_apply_interval(),
          false = lists:any(fun(M)->{self(),Message}=:=M end, lists:flatten(Match)),
          true = (length(RetList) >= Count)
@@ -353,5 +349,7 @@ wait_for_exit(Pid, Timeout) ->
             erlang:error(timeout)
     end.
 
-time_max() ->
-    ?LET(T, oneof([?PROP_TIME_MIN,?PROP_TIME_MAX]), T).
+interval_constant(Time) ->
+    % Time domain(integer): -576460752303423489 < d < 576460752303423488
+    % range: 12 < r < 16725
+    round(math:pow(math:log(abs(Time)+3),2)*10).
