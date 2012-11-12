@@ -27,7 +27,7 @@ distclean:
 	@rebar delete-deps
 
 dialyze: compile
-	@dialyzer -r .
+	@dialyzer -Wno_undefined_callbacks -r .
 
 test: compile
 	@rebar skip_deps=true eunit

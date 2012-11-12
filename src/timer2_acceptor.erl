@@ -178,22 +178,24 @@ local_do_after(Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         Pid when is_pid(Pid) ->
             NewETRef =  erlang:send_after(Time, Pid, Message),
-            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
-            _ = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
+            true = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
+            true = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
             {ok, {NewETRef, Timer2Ref}};
         Error ->
             Error
     end.
 
+-spec local_do_interval(pid(), timer2_server_ref(), time(), any(), #state{}) ->
+                               {ok, {reference(), timer2_server_ref()}} | error().
 local_do_interval(FromPid, Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         ToPid when is_pid(ToPid) ->
             ETRef = erlang:send_after(Time, ToPid, Message),
             % Need to link to the FromPid so we can remove these entries
             catch link(FromPid),
-            _ = ets:insert(?TIMER2_TAB, {ETRef, Message}),
-            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
-            _ = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
+            true = ets:insert(?TIMER2_TAB, {ETRef, Message}),
+            true = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
+            true = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
             {ok, {ETRef, Timer2Ref}};
         Error ->
             Error
