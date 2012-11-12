@@ -174,6 +174,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-spec local_do_after(timer2_server_ref(), time(), any(), #state{}) ->
+                               {ok, {reference(), timer2_server_ref()}} | error().
 local_do_after(Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         Pid when is_pid(Pid) ->
