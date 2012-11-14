@@ -32,7 +32,7 @@ distclean:
 	@rebar delete-deps
 
 dialyze: compile
-	@dialyzer -r .
+	@dialyzer -r ebin
 
 test: compile
 	@rebar skip_deps=true ct verbose=1
