@@ -24,7 +24,7 @@
 -export([delete/1]).
 
 %% For debugging
--export([show_tables/0]).
+-export([show_tables/0, match_send_interval/0, match_apply_interval/0, match_send_after/0, match_apply_after/0]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -55,8 +55,19 @@ delete(Timer2Ref) ->
     process_request(delete, Timer2Ref).
 
 show_tables() ->
-        timer2_manager:safe_call({timer2_acceptor, undefined}, show_tables).
+    timer2_manager:safe_call({timer2_acceptor, undefined}, show_tables).
 
+match_send_interval() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_send_interval).
+
+match_apply_interval() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_apply_interval).
+
+match_send_after() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_send_after).
+
+match_apply_after() ->
+    timer2_manager:safe_call({timer2_acceptor, undefined}, match_apply_after).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -100,12 +111,13 @@ handle_call({cancel, {_ETRef, Timer2Ref} = _Args}, _From, State) ->
     % Need to look up the TRef, because it might have changed due to *_interval usage
     Reply = case ets:lookup(?TIMER2_REF_TAB, Timer2Ref) of
         [{_, FinalTRef}] ->
-            erlang:cancel_timer(FinalTRef),
+            % follow the defination of http://erldocs.com/R15B/erts/erlang.html?i=0&search=timer#cancel_timer/1
+            Time = erlang:cancel_timer(FinalTRef),
             _ = ets:delete(?TIMER2_TAB, FinalTRef),
             _ = ets:delete(?TIMER2_REF_TAB, Timer2Ref),
-            {ok, cancel};
+            Time;
         _ ->
-            {error, badarg}
+            false
     end,
     {reply, Reply, State};
 
@@ -117,6 +129,22 @@ handle_call(show_tables, _From, State) ->
     Timer2RefTab = ets:tab2list(?TIMER2_REF_TAB),
     Timer2PidTab = ets:tab2list(?TIMER2_PID_TAB),
     {reply, {ok,{Timer2Tab,Timer2RefTab, Timer2PidTab}}, State};
+
+handle_call(match_send_interval, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{send_interval,'_','_','$1'}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_apply_interval, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{apply_interval,'_','_','$1'}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_send_after, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{send_after,'_',{'$1','_'}}}),
+    {reply, {ok,{Timer2Match}}, State};
+
+handle_call(match_apply_after, _From, State) ->
+    Timer2Match = ets:match(?TIMER2_TAB, {'_',{apply_after,'_',{'$1','_'}}}),
+    {reply, {ok,{Timer2Match}}, State};
 
 handle_call(ping, _From, State) ->
     {reply, {ok, ping}, State};
@@ -178,27 +206,38 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-spec local_do_after(timer2_server_ref(), time(), any(), #state{}) ->
+                               {ok, {reference(), timer2_server_ref()}} | error().
 local_do_after(Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         Pid when is_pid(Pid) ->
             NewETRef =  erlang:send_after(Time, Pid, Message),
-            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
-            _ = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
+            true = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, NewETRef}),
+            true = ets:insert(?TIMER2_TAB, {NewETRef, Message}),
             {ok, {NewETRef, Timer2Ref}};
         Error ->
             Error
     end.
 
+-spec local_do_interval(pid(), timer2_server_ref(), time(), any(), #state{}) ->
+                               {ok, {reference(), timer2_server_ref()}} | error().
 local_do_interval(FromPid, Timer2Ref, Time, Message, _State) ->
     case timer2_manager:get_process(timer2_processor) of
         ToPid when is_pid(ToPid) ->
             ETRef = erlang:send_after(Time, ToPid, Message),
             % Need to link to the FromPid so we can remove these entries
-            catch link(FromPid),
-            _ = ets:insert(?TIMER2_TAB, {ETRef, Message}),
-            _ = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
-            _ = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
-            {ok, {ETRef, Timer2Ref}};
+            try
+                link(FromPid),
+                true = ets:insert(?TIMER2_TAB, {ETRef, Message}),
+                true = ets:insert(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
+                true = ets:insert(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
+                {ok, {ETRef, Timer2Ref}}
+            catch _:Error ->
+                    true = ets:delete(?TIMER2_TAB, {ETRef, Message}),
+                    true = ets:delete(?TIMER2_REF_TAB, {Timer2Ref, ETRef}),
+                    true = ets:delete(?TIMER2_PID_TAB, {FromPid, Timer2Ref}),
+                    {error, Error}
+            end;
         Error ->
             Error
     end.

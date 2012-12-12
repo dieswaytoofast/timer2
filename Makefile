@@ -8,6 +8,9 @@ TEST_EPATH := -pa .eunit -pz deps/*/ebin
 
 all: compile
 
+bootstrap:
+	@rebar get-deps
+
 compile:
 	@rebar compile
 
@@ -18,6 +21,8 @@ doc:
 	@rebar skip_deps=true doc
 
 clean:
+	- rm -rf $(CURDIR)/logs/*
+	- rm -rf $(CURDIR)/test/*.beam
 	@rebar skip_deps=true clean
 
 depclean:
@@ -27,10 +32,10 @@ distclean:
 	@rebar delete-deps
 
 dialyze: compile
-	@dialyzer -r .
+	@dialyzer -r ebin
 
-test:
-	@rebar skip_deps=true eunit
+test: compile
+	@rebar skip_deps=true ct verbose=1
 
 console:
 	$(ERL) -sname $(APPLICATION) $(EPATH) -config app
